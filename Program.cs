@@ -87,14 +87,14 @@ public class AttackCreatureCommand : Command
 {
     private readonly int fromCreatureId;
     private readonly int targetCreatureId;
-    public AttackCreatureCommand(int fromCreatureId, int targetCreatureId)
+    public AttackCreatureCommand(Card from, Card target)
     {
-        this.fromCreatureId = fromCreatureId;
-        this.targetCreatureId = targetCreatureId;
+        this.fromCreatureId = from.instanceId;
+        this.targetCreatureId = target.instanceId;
     }
     public override string ToString()
     {
-        return $"ATTACKE {fromCreatureId.ToString()} {targetCreatureId.ToString()}";
+        return $"ATTACK {fromCreatureId.ToString()} {targetCreatureId.ToString()}";
     }
 }
 
@@ -122,9 +122,11 @@ public class Card
     public readonly Location location;
     public readonly int instanceId;
     public readonly int attack;
+    public readonly int defense;
     public readonly int cost;
     public readonly int myHealthChange;
     public readonly int opponentHealthChange;
+    private readonly  string abilities;
     public Card(string description)
     {
         var inputs = description.Split(' ');
@@ -134,17 +136,22 @@ public class Card
         int cardType = int.Parse(inputs[3]);
         this.cost = int.Parse(inputs[4]);
         this.attack = int.Parse(inputs[5]);
-        int defense = int.Parse(inputs[6]);
-        string abilities = inputs[7];
+        this.defense = int.Parse(inputs[6]);
+        this.abilities = inputs[7];
         this.myHealthChange = int.Parse(inputs[8]);
         this.opponentHealthChange = int.Parse(inputs[9]);
         int cardDraw = int.Parse(inputs[10]);
     }
 
+    public bool HasBreakthrough => abilities[0] == 'B';
+    public bool HasCharge => abilities[1] == 'C';
+    public bool HasGuard => abilities[3] == 'G';
+
     public int ComputeScoreForDraft()
     {
         return this.attack + this.myHealthChange - this.opponentHealthChange;
     }
+   
 }
 
 public interface IDraftAI
@@ -198,23 +205,68 @@ public class BattleAI : AbstractBattleAI
     {
         var commands = new List<Command>();
 
-        commands.AddRange(SummonCreatures());
-        commands.AddRange(AttackOpponent());
+        commands.AddRange(SummonCreatures(out List<Card> cardsWithCharge));
+
+        var myCardsInDashboard = this.cards
+                .Where(c => c.location == Location.PlayerSide)
+                .Union(cardsWithCharge)
+                .ToList();
+
+        commands.AddRange(AttackOpponentGuards(myCardsInDashboard));
+        commands.AddRange(AttackOpponent(myCardsInDashboard));
 
         return commands.ToArray();
     }
 
-    private List<AttackOpponentCommand> AttackOpponent()
+    private List<AttackCreatureCommand> AttackOpponentGuards(List<Card> remainingCardsInDashboard)
     {
-        return this.cards
-                .Where(c => c.location == Location.PlayerSide)
+        var commands = new List<AttackCreatureCommand>();
+        var enemyGuards = this.cards
+            .Where(c => c.location == Location.OpponentSide && c.HasGuard)
+            .OrderByDescending( c => c.defense)
+            .ToArray();
+
+        for(int i = 0; i < enemyGuards.Length; i++)
+        {
+            commands.AddRange( AttackEnemyCreature(enemyGuards[i], remainingCardsInDashboard));
+        }
+
+        return commands;
+    }
+
+    private List<AttackCreatureCommand> AttackEnemyCreature(Card enemyCard, List<Card> remainingCardsInDashboard)
+    {
+        var myOrderedcards = remainingCardsInDashboard
+            .OrderByDescending(c => c.attack)
+            .ToArray();
+        
+        var commands = new List<AttackCreatureCommand>();
+        var index = 0;
+        var remainingDefense = enemyCard.defense;
+        
+        while(remainingDefense > 0 && index < myOrderedcards.Length)
+        {
+            commands.Add(new AttackCreatureCommand(myOrderedcards[index], enemyCard));
+            remainingDefense = remainingDefense - myOrderedcards[index].attack;
+            remainingCardsInDashboard.Remove(myOrderedcards[index]);
+            index++;
+        }
+
+        return commands;
+    }
+
+    private List<AttackOpponentCommand> AttackOpponent(List<Card> remainingCardsInDashboard)
+    {
+        return remainingCardsInDashboard
                 .Select( c => new AttackOpponentCommand(c))
                 .ToList();              
     }
 
-    private List<SummonCommand> SummonCreatures()
+    private List<Command> SummonCreatures(out List<Card> cardsWithCharge)
     {
-        var commands = new List<SummonCommand>();
+        cardsWithCharge = new List<Card>();
+
+        var commands = new List<Command>();
         var me = this.me.Clone();
         var myCardsInMyHand = this.cards
                         .Where(c => c.location == Location.MyHand)
@@ -227,6 +279,11 @@ public class BattleAI : AbstractBattleAI
             {
                 me.Summon(cardInMyHand);
                 commands.Add(new SummonCommand(cardInMyHand));
+
+                if(cardInMyHand.HasCharge)
+                {
+                    cardsWithCharge.Add(cardInMyHand);
+                }
             }
         }
         return commands;
