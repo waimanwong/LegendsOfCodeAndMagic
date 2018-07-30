@@ -51,6 +51,38 @@ public class Player
 public abstract class Command
 {
 }
+public class UseItemOnCreatureCommand : Command
+{
+    private readonly int itemId;
+    private readonly int targetCreatureId;
+
+    public UseItemOnCreatureCommand(Card item, Card targetCreature)
+    {
+        itemId = item.instanceId;
+        targetCreatureId = targetCreature.instanceId;
+    }
+    
+    public override string ToString()
+    {
+        return $"USE {itemId.ToString()} {targetCreatureId.ToString()}";
+    }
+}
+
+public class UseItemCommand : Command
+{
+    private readonly int itemId;
+
+    public UseItemCommand(Card item)
+    {
+        itemId = item.instanceId;
+    }
+    
+    public override string ToString()
+    {
+        return $"USE {itemId.ToString()} -1";
+    }
+}
+
 public class PassCommand : Command
 {
     public override string ToString()
@@ -243,7 +275,7 @@ public class BattleAI : AbstractBattleAI
         var commands = new List<AttackCreatureCommand>();
         var index = 0;
         var remainingDefense = enemyCard.defense;
-        
+
         while(remainingDefense > 0 && index < myOrderedcards.Length)
         {
             commands.Add(new AttackCreatureCommand(myOrderedcards[index], enemyCard));
