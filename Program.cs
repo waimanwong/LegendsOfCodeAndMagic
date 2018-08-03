@@ -43,6 +43,8 @@ public class Player
     }
     public bool CanSummon(Card card)
     {
+        Game.Debug($"card cost {card.cost} / my mana {this.mana}");
+
         return card.cost <= this.mana; 
     }
     
@@ -149,6 +151,13 @@ public enum Location
     PlayerSide = 1,
     OpponentSide = -1
 }
+public enum CardType
+{
+    Creature = 0,
+    GreenItem = 1,
+    RedItem = 2,
+    BlueItem = 3
+}
 public class Card
 {
     public readonly Location location;
@@ -159,13 +168,14 @@ public class Card
     public readonly int myHealthChange;
     public readonly int opponentHealthChange;
     private readonly  string abilities;
+    public readonly CardType CardType;
     public Card(string description)
     {
         var inputs = description.Split(' ');
         int cardNumber = int.Parse(inputs[0]);
         this.instanceId = int.Parse(inputs[1]);
         this.location = (Location)int.Parse(inputs[2]);
-        int cardType = int.Parse(inputs[3]);
+        this.CardType = (CardType)int.Parse(inputs[3]);
         this.cost = int.Parse(inputs[4]);
         this.attack = int.Parse(inputs[5]);
         this.defense = int.Parse(inputs[6]);
@@ -181,11 +191,10 @@ public class Card
     public bool HasGuard => abilities[3] == 'G';
     public bool HasLethal => abilities[4] == 'L';
     public bool HasWard => abilities[5] == 'W';
-
     
     public int ComputeScoreForDraft()
     {
-        return this.attack + this.myHealthChange - this.opponentHealthChange;
+        return this.attack + this.myHealthChange - this.opponentHealthChange - this.cost;
     }
    
 }
@@ -304,21 +313,21 @@ public class BattleAI : AbstractBattleAI
 
         var commands = new List<Command>();
         var me = this.me.Clone();
-        var myCardsInMyHand = this.cards
-                        .Where(c => c.location == Location.MyHand)
+        var creaturesInMyHand = this.cards
+                        .Where(c => c.location == Location.MyHand && c.CardType == CardType.Creature)
                         .OrderByDescending(c => c.attack)
                         .ToArray();
 
-        foreach(var cardInMyHand in myCardsInMyHand)
+        foreach(var creatureInMyHand in creaturesInMyHand)
         {
-            if(me.CanSummon(cardInMyHand) && MySummonedCreaturesDoesNotExceed(Game.MaxCreatures))
+            if(me.CanSummon(creatureInMyHand) && MySummonedCreaturesDoesNotExceed(Game.MaxCreatures))
             {
-                me.Summon(cardInMyHand);
-                commands.Add(new SummonCommand(cardInMyHand));
+                me.Summon(creatureInMyHand);
+                commands.Add(new SummonCommand(creatureInMyHand));
 
-                if(cardInMyHand.HasCharge)
+                if(creatureInMyHand.HasCharge)
                 {
-                    cardsWithCharge.Add(cardInMyHand);
+                    cardsWithCharge.Add(creatureInMyHand);
                 }
             }
         }
@@ -327,12 +336,11 @@ public class BattleAI : AbstractBattleAI
 
     private bool MySummonedCreaturesDoesNotExceed(int max)
     {
-        return this.cards.Count(c => c.location == Location.PlayerSide) <= max;
+        int summonedCreatures = this.cards.Count(c => c.location == Location.PlayerSide);
+        
+        return summonedCreatures <= max;
     }
 }
-
-
-
 
 /**
  * Auto-generated code below aims at helping you parse
