@@ -177,8 +177,12 @@ public class Card
 
     public bool HasBreakthrough => abilities[0] == 'B';
     public bool HasCharge => abilities[1] == 'C';
+    public bool HasDrain => abilities[2] == 'D';
     public bool HasGuard => abilities[3] == 'G';
+    public bool HasLethal => abilities[4] == 'L';
+    public bool HasWard => abilities[5] == 'W';
 
+    
     public int ComputeScoreForDraft()
     {
         return this.attack + this.myHealthChange - this.opponentHealthChange;
@@ -307,7 +311,7 @@ public class BattleAI : AbstractBattleAI
 
         foreach(var cardInMyHand in myCardsInMyHand)
         {
-            if(me.CanSummon(cardInMyHand))
+            if(me.CanSummon(cardInMyHand) && MySummonedCreaturesDoesNotExceed(Game.MaxCreatures))
             {
                 me.Summon(cardInMyHand);
                 commands.Add(new SummonCommand(cardInMyHand));
@@ -320,6 +324,11 @@ public class BattleAI : AbstractBattleAI
         }
         return commands;
     }
+
+    private bool MySummonedCreaturesDoesNotExceed(int max)
+    {
+        return this.cards.Count(c => c.location == Location.PlayerSide) <= max;
+    }
 }
 
 
@@ -331,6 +340,7 @@ public class BattleAI : AbstractBattleAI
  **/
 public class Game
 {
+    public const int MaxCreatures = 6;
     public static void Debug(string message)
     {
         Console.Error.WriteLine(message);
