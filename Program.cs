@@ -41,7 +41,7 @@ public class Player
     {
         this.mana = this.mana - card.cost;
     }
-    public bool CanSummon(Card card)
+    public bool CanUseCard(Card card)
     {
         Game.Debug($"card cost {card.cost} / my mana {this.mana}");
 
@@ -259,8 +259,28 @@ public class BattleAI : AbstractBattleAI
 
         commands.AddRange(AttackOpponentGuards(myCardsInDashboard));
         commands.AddRange(AttackOpponent(myCardsInDashboard));
+        commands.AddRange(UseBlueItems(myCardsInDashboard));
 
         return commands.ToArray();
+    }
+
+    private List<UseItemCommand> UseBlueItems(List<Card> remainingCardsInDashboard)
+    {
+        var commands = new List<UseItemCommand>();
+
+        var blueItems = this.cards
+            .Where(c => c.location == Location.MyHand && c.CardType == CardType.BlueItem)
+            .ToArray();
+
+        foreach(var blueItem in blueItems)
+        {
+            if(me.CanUseCard(blueItem))
+            {
+                commands.Add(new UseItemCommand(blueItem));
+                remainingCardsInDashboard.Remove(blueItem);
+            }
+        } 
+        return commands;
     }
 
     private List<AttackCreatureCommand> AttackOpponentGuards(List<Card> remainingCardsInDashboard)
@@ -320,7 +340,7 @@ public class BattleAI : AbstractBattleAI
 
         foreach(var creatureInMyHand in creaturesInMyHand)
         {
-            if(me.CanSummon(creatureInMyHand) && MySummonedCreaturesDoesNotExceed(Game.MaxCreatures))
+            if(me.CanUseCard(creatureInMyHand) && MySummonedCreaturesDoesNotExceed(Game.MaxCreatures))
             {
                 me.Summon(creatureInMyHand);
                 commands.Add(new SummonCommand(creatureInMyHand));
